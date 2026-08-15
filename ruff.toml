@@ -1,0 +1,9 @@
+# ruff 静态检查配置。
+# 有意不启用 BLE/S：GUI 与 ctypes 层存在大量有意为之的静默兜底
+# （主题回退、拖拽注册、配置读写失败静默等，详见各处注释），安全审计类规则对桌面工具是噪音。
+target-version = "py311"
+line-length = 120
+exclude = [".venv", "build", "dist", "__pycache__", "tmp_work"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "W6", "I", "UP", "B", "PIE"]
