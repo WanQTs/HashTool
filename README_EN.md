@@ -1,5 +1,10 @@
 # File Hash Calculator & Verifier (HashTool)
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
+[![Release](https://img.shields.io/github/v/release/WanQTs/HashTool)](https://github.com/WanQTs/HashTool/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+
 A Windows 10/11 64-bit desktop tool: compute file hashes (MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32) and verify them with three comparison modes. Built with the Python standard library only (tkinter), no third-party runtime dependencies, delivered as a **64-bit single-file exe**.
 
 **中文版本：[README.md](README.md)**
@@ -30,6 +35,14 @@ Result colors: **match=green, mismatch=red, missing=orange**.
 - TXT (standard SUM format, recognizable by other verification tools)
 - Copy a single hash with a double-click on the cell or right-click → "Copy This Cell"
 
+## Screenshots
+
+| Main window (中文) | Main window (English) |
+| --- | --- |
+| <img src="docs/screenshots/main_zh.png" width="520" alt="Main window (Chinese)"> | <img src="docs/screenshots/main_en.png" width="520" alt="Main window (English)"> |
+| Batch verify (中文) | Batch verify (English) |
+| <img src="docs/screenshots/compare_zh.png" width="520" alt="Batch verify (Chinese)"> | <img src="docs/screenshots/compare_en.png" width="520" alt="Batch verify (English)"> |
+
 ## Directory structure
 
 ```
@@ -48,8 +61,11 @@ HashTool/
 │   ├── test_i18n.py       # Bilingual completeness / English-mode behavior
 │   └── test_gui_smoke.py  # GUI smoke tests (main flow + three modes; auto-skip without a display)
 ├── pytest.ini             # pytest config
+├── ruff.toml              # ruff static-analysis config
 ├── build.bat              # One-click build script
-├── CHANGELOG.md           # Change log
+├── .github/workflows/ci.yml   # GitHub Actions: pytest + ruff on push/PR
+├── docs/screenshots/      # README screenshots (Chinese & English)
+├── README.md / README_EN.md / CHANGELOG.md
 └── dist/
     └── HashTool.exe        # Packaged artifact (64-bit single file)
 ```

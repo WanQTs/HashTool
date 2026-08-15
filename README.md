@@ -1,5 +1,10 @@
 # 文件哈希值获取与对比工具
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
+[![Release](https://img.shields.io/github/v/release/WanQTs/HashTool)](https://github.com/WanQTs/HashTool/releases)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+
 **English version: [README_EN.md](README_EN.md)**
 
 Windows 10/11 64 位桌面小工具：计算文件哈希（MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32），并提供三种哈希对比模式。纯 Python 标准库（tkinter）实现，无第三方运行时依赖，最终交付为 **64 位单文件 exe**。
@@ -30,6 +35,14 @@ Windows 10/11 64 位桌面小工具：计算文件哈希（MD5 / SHA-1 / SHA-256
 - TXT（标准 SUM 格式，可被其他校验工具识别）
 - 双击哈希单元格或右键「复制此单元格」一键复制
 
+## 界面截图
+
+| 主窗口（中文） | 主窗口（English） |
+| --- | --- |
+| <img src="docs/screenshots/main_zh.png" width="520" alt="主窗口（中文）"> | <img src="docs/screenshots/main_en.png" width="520" alt="Main window (English)"> |
+| 批量比对（中文） | 批量比对（English） |
+| <img src="docs/screenshots/compare_zh.png" width="520" alt="批量比对（中文）"> | <img src="docs/screenshots/compare_en.png" width="520" alt="Batch verify (English)"> |
+
 ## 目录结构
 
 ```
@@ -48,8 +61,11 @@ HashTool/
 │   ├── test_i18n.py       # 双语字符串完整性 / 英文模式行为测试
 │   └── test_gui_smoke.py  # GUI 冒烟测试（主流程与三种对比模式，无显示时自动跳过）
 ├── pytest.ini             # pytest 配置
+├── ruff.toml              # ruff 静态检查配置
 ├── build.bat              # 一键打包脚本
-├── CHANGELOG.md           # 变更记录
+├── .github/workflows/ci.yml   # GitHub Actions：push/PR 自动跑 pytest + ruff
+├── docs/screenshots/      # README 界面截图（中英文）
+├── README.md / README_EN.md / CHANGELOG.md
 └── dist/
     └── HashTool.exe        # 打包产物（64 位单文件）
 ```

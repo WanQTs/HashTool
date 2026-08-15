@@ -17,6 +17,7 @@
 - 修复：目录扫描窗口期的边缘防御——扫描进行中（含结果已得出、待轮询回插的窗口期）禁止清空列表/移除文件/重复添加/开始计算；扫描结果队列改为局部引用随轮询传递，避免窗口期内连续扫描顶掉引用丢失结果
 - 文档：新增英文版 README（README_EN.md，与中文版互相链接）
 - 发布：开源至 GitHub（MIT 协议），Release v1.5.0 附带 exe 与 SHA-256 校验和
+- 展示：README 徽章（许可证/CI/Release/Python）与中英文界面截图；新增 GitHub Actions（push/PR 自动跑 pytest + ruff，Python 3.11/3.13 矩阵）
 
 ## 1.4.1
 
