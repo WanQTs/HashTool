@@ -1,5 +1,7 @@
 # 文件哈希值获取与对比工具
 
+**English version: [README_EN.md](README_EN.md)**
+
 Windows 10/11 64 位桌面小工具：计算文件哈希（MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32），并提供三种哈希对比模式。纯 Python 标准库（tkinter）实现，无第三方运行时依赖，最终交付为 **64 位单文件 exe**。
 
 ## 功能特性
