@@ -49,7 +49,7 @@ HashTool/
 ├── pytest.ini             # pytest 配置
 ├── ruff.toml              # ruff 静态检查配置
 ├── build.bat              # 一键打包脚本（生成图标 + PyInstaller）
-├── README.md / CHANGELOG.md
+├── README.md / README_EN.md / CHANGELOG.md
 ├── tmp_work/              # 测试临时目录（见 conftest.py）
 └── dist/HashTool.exe      # 打包产物（被 .gitignore 忽略）
 ```
