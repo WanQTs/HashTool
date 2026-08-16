@@ -1,17 +1,30 @@
-# File Hash Calculator & Verifier (HashTool)
+<div align="center">
+
+<img src="docs/screenshots/logo.png" width="128" alt="HashTool logo">
+
+# HashTool
+
+**File Hash Calculator & Verifier — compute, verify, and batch-check in one place**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
 [![Release](https://img.shields.io/github/v/release/WanQTs/HashTool)](https://github.com/WanQTs/HashTool/releases)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)](https://github.com/WanQTs/HashTool)
 
-A Windows 10/11 64-bit desktop tool: compute file hashes (MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32) and verify them with three comparison modes. Built with the Python standard library only (tkinter), no third-party runtime dependencies, delivered as a **64-bit single-file exe**.
+[中文](README.md) · **English**
 
-**中文版本：[README.md](README.md)**
+[✨ Features](#-features) · [📸 Screenshots](#-screenshots) · [🚀 Usage](#-usage) · [⚡ Benchmark](#-performance-benchmark) · [❓ FAQ](#-faq)
 
-## Features
+</div>
 
-### 1. Hash computation
+---
+
+A Windows 10/11 64-bit desktop tool: compute file hashes (MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32) and verify them with three comparison modes. Built with the Python standard library only (tkinter), **zero third-party runtime dependencies**, delivered as a **64-bit single-file exe**.
+
+## ✨ Features
+
+### 🔢 Hash computation
 - Five algorithms, selectable together: MD5, SHA-1, SHA-256, SHA-512, CRC32
 - Three ways to add files: file picker (multi-select), drag & drop files/folders into the window, add a whole folder (recursive)
 - Large files are read in **8MB chunks** (pre-allocated buffer, never loaded into memory at once)
@@ -21,7 +34,8 @@ A Windows 10/11 64-bit desktop tool: compute file hashes (MD5 / SHA-1 / SHA-256 
 - **Bauhaus-style UI**: warm paper background, ink-black header band with a red circle / yellow triangle / blue square geometric logo, flat buttons (solid blue primary action), black table header, Microsoft YaHei font, zero third-party dependencies
 - **Bilingual UI (Chinese / English)**: switch instantly via the "Language" menu (main window, compare window, messages, and export headers all update); auto-detected from the system on first launch; the choice is saved to `%APPDATA%\HashTool\config.json`
 
-### 2. Hash comparison (key feature, menu: Tools → Hash Compare)
+### 🔍 Hash comparison (key feature, menu: Tools → Hash Compare)
+
 | Mode | Description |
 | --- | --- |
 | Verify single file | Paste a hash; the algorithm is auto-detected by length (32=MD5, 40=SHA-1, 64=SHA-256, 128=SHA-512, 8=CRC32); shows "✔ Match / ✘ Mismatch" with red highlight on mismatch |
@@ -30,20 +44,24 @@ A Windows 10/11 64-bit desktop tool: compute file hashes (MD5 / SHA-1 / SHA-256 
 
 Result colors: **match=green, mismatch=red, missing=orange**.
 
-### 3. Export results
+### 📤 Export results
 - CSV (with BOM, opens directly in Excel)
 - TXT (standard SUM format, recognizable by other verification tools)
 - Copy a single hash with a double-click on the cell or right-click → "Copy This Cell"
 
-## Screenshots
+## 📸 Screenshots
+
+<div align="center">
 
 | Main window (中文) | Main window (English) |
-| --- | --- |
-| <img src="docs/screenshots/main_zh.png" width="520" alt="Main window (Chinese)"> | <img src="docs/screenshots/main_en.png" width="520" alt="Main window (English)"> |
-| Batch verify (中文) | Batch verify (English) |
-| <img src="docs/screenshots/compare_zh.png" width="520" alt="Batch verify (Chinese)"> | <img src="docs/screenshots/compare_en.png" width="520" alt="Batch verify (English)"> |
+| :---: | :---: |
+| <img src="docs/screenshots/main_zh.png" width="480" alt="Main window (Chinese)"> | <img src="docs/screenshots/main_en.png" width="480" alt="Main window (English)"> |
+| **Batch verify (中文)** | **Batch verify (English)** |
+| <img src="docs/screenshots/compare_zh.png" width="480" alt="Batch verify (Chinese)"> | <img src="docs/screenshots/compare_en.png" width="480" alt="Batch verify (English)"> |
 
-## Directory structure
+</div>
+
+## 📁 Directory structure
 
 ```
 HashTool/
@@ -70,21 +88,23 @@ HashTool/
     └── HashTool.exe        # Packaged artifact (64-bit single file)
 ```
 
-## Usage
+## 🚀 Usage
 
 - Run `dist\HashTool.exe` directly (no Python required).
 - Development mode: `python main.py`
 - `python main.py --selftest` runs a headless self-check of the built-in algorithms.
 - Switch language: menu "Language" → 中文 / English; auto-detected from the system on first launch.
 
-## Running the tests
+## ✅ Running the tests
 
 ```bat
 python -m pip install pytest
 python -m pytest
 ```
 
-## Static analysis (ruff)
+The tests verify every algorithm against official known values (e.g. SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`) and cover chunked reading, cancellation, algorithm detection, list parsing, batch verification, and export; GUI smoke tests cover the main flow and the three compare modes (auto-skipped without a display).
+
+## 🧹 Static analysis (ruff)
 
 ```bat
 python -m pip install ruff
@@ -93,11 +113,9 @@ python -m ruff check
 
 Rule sets are defined in `ruff.toml` (tailored for a desktop GUI: E/F/I/UP/B/PIE etc.; the BLE/S security-audit sets are intentionally not enabled).
 
-The tests verify every algorithm against official known values (e.g. SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`) and cover chunked reading, cancellation, algorithm detection, list parsing, batch verification, and export; GUI smoke tests cover the main flow and the three compare modes (auto-skipped without a display).
+## ⚡ Performance benchmark
 
-## Performance benchmark (measured on this machine)
-
-Run `python benchmark.py` (6 × 128MB files, 768MB total; MD5+SHA-256+SHA-512; best of 2 rounds per config; 32 logical cores):
+Run `python benchmark.py` — figures below measured on this machine (6 × 128MB files, 768MB total; MD5+SHA-256+SHA-512; best of 2 rounds per config; 32 logical cores):
 
 | Threads | Time | Throughput | Speedup |
 | ---: | ---: | ---: | ---: |
@@ -107,7 +125,7 @@ Run `python benchmark.py` (6 × 128MB files, 768MB total; MD5+SHA-256+SHA-512; b
 
 The speedup comes from hashlib releasing the GIL for large buffers; gains are smaller on slower random-read media (e.g. HDDs) — set "Threads" to 1 in that case.
 
-## Packaging (PyInstaller)
+## 📦 Packaging (PyInstaller)
 
 ```bat
 python -m pip install pyinstaller
@@ -118,10 +136,44 @@ python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
 
 Or simply run `build.bat`. Requires **64-bit Python (3.11+)**; the output is the single file `dist\HashTool.exe` for Windows 10/11 64-bit.
 
-## FAQ
+## ❓ FAQ
 
-- **Antivirus false positives**: PyInstaller `--onefile` binaries are occasionally flagged; add an exclusion, or use `--onedir` instead if it bothers you.
-- **Drag & drop unavailable**: based on native Windows messages (WM_DROPFILES), Windows-only; it is disabled automatically on other platforms.
-- **Batch list format**: one `hash  filename` per line (spaces or tabs); `#`/`;` comments and the `MD5 (filename) = hash` (certutil) form are supported; filenames may contain relative subdirectories.
-- **UI theming (optional)**: the default is the Bauhaus style (warm paper, ink-black header band, primary-color geometric icon, flat controls) with Microsoft YaHei, zebra-striped table, and window icon; after `pip install ttkbootstrap`, ttk widgets switch to the cosmo theme automatically (brand elements such as the header band keep the Bauhaus style).
-- **Language setting**: saved to `%APPDATA%\HashTool\config.json` (configs in the legacy Chinese directory are migrated and cleaned up automatically at startup); delete the file to restore auto-detection. Error messages keep the language they were produced in; new messages follow the new language after switching.
+<details>
+<summary><b>Antivirus false positives?</b></summary>
+
+PyInstaller `--onefile` binaries are occasionally flagged; add an exclusion, or use `--onedir` instead if it bothers you.
+</details>
+
+<details>
+<summary><b>Drag &amp; drop unavailable?</b></summary>
+
+Based on native Windows messages (WM_DROPFILES), Windows-only; it is disabled automatically on other platforms.
+</details>
+
+<details>
+<summary><b>Batch list format requirements?</b></summary>
+
+One `hash  filename` per line (spaces or tabs); `#`/`;` comments and the `MD5 (filename) = hash` (certutil) form are supported; filenames may contain relative subdirectories.
+</details>
+
+<details>
+<summary><b>Can I change the UI theme?</b></summary>
+
+The default is the Bauhaus style (warm paper, ink-black header band, primary-color geometric icon, flat controls) with Microsoft YaHei, zebra-striped table, and window icon; after `pip install ttkbootstrap`, ttk widgets switch to the cosmo theme automatically (brand elements such as the header band keep the Bauhaus style).
+</details>
+
+<details>
+<summary><b>Where is the language setting stored?</b></summary>
+
+Saved to `%APPDATA%\HashTool\config.json` (configs in the legacy Chinese directory are migrated and cleaned up automatically at startup); delete the file to restore auto-detection. Error messages keep the language they were produced in; new messages follow the new language after switching.
+</details>
+
+---
+
+<div align="center">
+
+**If this little tool helps you, a ⭐ star is appreciated!**
+
+[Changelog](CHANGELOG.md) · [Releases](https://github.com/WanQTs/HashTool/releases) · [MIT License](LICENSE)
+
+</div>
