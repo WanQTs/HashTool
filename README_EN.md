@@ -6,15 +6,15 @@
 
 **File Hash Calculator & Verifier — compute, verify, and batch-check in one place**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
 [![Release](https://img.shields.io/github/v/release/WanQTs/HashTool)](https://github.com/WanQTs/HashTool/releases)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)](https://github.com/WanQTs/HashTool)
+[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D6)](https://github.com/WanQTs/HashTool)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 [中文](README.md) · **English**
 
-[✨ Features](#-features) · [📸 Screenshots](#-screenshots) · [🚀 Usage](#-usage) · [⚡ Benchmark](#-performance-benchmark) · [❓ FAQ](#-faq)
+[✨ Features](#-features) · [📸 Screenshots](#-screenshots) · [📥 Download](#-download) · [🚀 Usage](#-usage) · [⚡ Performance](#-performance) · [❓ FAQ](#-faq)
 
 </div>
 
@@ -61,7 +61,59 @@ Result colors: **match=green, mismatch=red, missing=orange**.
 
 </div>
 
-## 📁 Directory structure
+## 📥 Download
+
+Grab the latest version from [**Releases**](https://github.com/WanQTs/HashTool/releases) — a single 64-bit executable for Windows 10/11, no Python installation required (the release notes include a SHA-256 checksum you can verify with the tool itself).
+
+## 🚀 Usage
+
+- Run the downloaded `HashTool.exe` directly (no Python required).
+- Development mode: `python main.py`
+- `python main.py --selftest` runs a headless self-check of the built-in algorithms.
+- Switch language: menu "Language" → 中文 / English; auto-detected from the system on first launch.
+
+## ✅ Running the tests
+
+```bat
+python -m pip install pytest
+python -m pytest
+```
+
+The tests verify every algorithm against official known values (e.g. SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`) and cover chunked reading, cancellation, algorithm detection, list parsing, batch verification, and export; GUI smoke tests cover the main flow and the three compare modes (auto-skipped without a display).
+
+## 🧹 Static analysis (ruff)
+
+```bat
+python -m pip install ruff
+python -m ruff check
+```
+
+Rule sets are defined in `ruff.toml` (tailored for a desktop GUI: E/F/I/UP/B/PIE etc.; the BLE/S security-audit sets are intentionally not enabled).
+
+## ⚡ Performance
+
+Measured on this machine with `python benchmark.py` (6 × 128MB files, 768MB total; MD5+SHA-256+SHA-512; best of 2 rounds per config; 32 logical cores):
+
+| Threads | Time | Throughput | Speedup |
+| ---: | ---: | ---: | ---: |
+| 1 | 1.55 s | 494 MB/s | x1.00 |
+| 2 | 0.99 s | 779 MB/s | x1.58 |
+| 4 | 0.65 s | 1190 MB/s | x2.41 |
+
+The speedup comes from hashlib releasing the GIL for large buffers; gains are smaller on slower random-read media (e.g. HDDs) — set "Threads" to 1 in that case.
+
+## 🛠️ Packaging (PyInstaller)
+
+```bat
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
+  --name "HashTool" --icon "%CD%\app.ico" ^
+  --distpath dist --workpath build --specpath build main.py
+```
+
+Or simply run `build.bat`. Requires **64-bit Python (3.11+)**; the output is the single file `dist\HashTool.exe` for Windows 10/11 64-bit.
+
+## 🗂️ Directory structure
 
 ```
 HashTool/
@@ -87,54 +139,6 @@ HashTool/
 └── dist/
     └── HashTool.exe        # Packaged artifact (64-bit single file)
 ```
-
-## 🚀 Usage
-
-- Run `dist\HashTool.exe` directly (no Python required).
-- Development mode: `python main.py`
-- `python main.py --selftest` runs a headless self-check of the built-in algorithms.
-- Switch language: menu "Language" → 中文 / English; auto-detected from the system on first launch.
-
-## ✅ Running the tests
-
-```bat
-python -m pip install pytest
-python -m pytest
-```
-
-The tests verify every algorithm against official known values (e.g. SHA-256 of `"abc"` = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`) and cover chunked reading, cancellation, algorithm detection, list parsing, batch verification, and export; GUI smoke tests cover the main flow and the three compare modes (auto-skipped without a display).
-
-## 🧹 Static analysis (ruff)
-
-```bat
-python -m pip install ruff
-python -m ruff check
-```
-
-Rule sets are defined in `ruff.toml` (tailored for a desktop GUI: E/F/I/UP/B/PIE etc.; the BLE/S security-audit sets are intentionally not enabled).
-
-## ⚡ Performance benchmark
-
-Run `python benchmark.py` — figures below measured on this machine (6 × 128MB files, 768MB total; MD5+SHA-256+SHA-512; best of 2 rounds per config; 32 logical cores):
-
-| Threads | Time | Throughput | Speedup |
-| ---: | ---: | ---: | ---: |
-| 1 | 1.55 s | 494 MB/s | x1.00 |
-| 2 | 0.99 s | 779 MB/s | x1.58 |
-| 4 | 0.65 s | 1190 MB/s | x2.41 |
-
-The speedup comes from hashlib releasing the GIL for large buffers; gains are smaller on slower random-read media (e.g. HDDs) — set "Threads" to 1 in that case.
-
-## 📦 Packaging (PyInstaller)
-
-```bat
-python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
-  --name "HashTool" --icon "%CD%\app.ico" ^
-  --distpath dist --workpath build --specpath build main.py
-```
-
-Or simply run `build.bat`. Requires **64-bit Python (3.11+)**; the output is the single file `dist\HashTool.exe` for Windows 10/11 64-bit.
 
 ## ❓ FAQ
 

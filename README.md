@@ -6,15 +6,15 @@
 
 **文件哈希值获取与对比工具 —— 计算 · 校验 · 批量比对，一站式完成**
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
 [![Release](https://img.shields.io/github/v/release/WanQTs/HashTool)](https://github.com/WanQTs/HashTool/releases)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-blue)](https://github.com/WanQTs/HashTool)
+[![CI](https://github.com/WanQTs/HashTool/actions/workflows/ci.yml/badge.svg)](https://github.com/WanQTs/HashTool/actions)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D6)](https://github.com/WanQTs/HashTool)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **中文** · [English](README_EN.md)
 
-[✨ 功能特性](#-功能特性) · [📸 界面截图](#-界面截图) · [🚀 使用方法](#-使用方法) · [⚡ 性能基准](#-性能基准本机实测) · [❓ 常见问题](#-常见问题)
+[✨ 功能特性](#-功能特性) · [📸 界面截图](#-界面截图) · [📥 下载](#-下载) · [🚀 使用方法](#-使用方法) · [⚡ 性能实测](#-性能实测) · [❓ 常见问题](#-常见问题)
 
 </div>
 
@@ -61,7 +61,59 @@ Windows 10/11 64 位桌面小工具：计算文件哈希（MD5 / SHA-1 / SHA-256
 
 </div>
 
-## 📁 目录结构
+## 📥 下载
+
+前往 [**Releases**](https://github.com/WanQTs/HashTool/releases) 下载最新版本——Windows 10/11 64 位单文件，解压即用，无需安装 Python（发布页附有 SHA-256 校验值，可以顺手用本工具自检）。
+
+## 🚀 使用方法
+
+- 直接运行下载的 `HashTool.exe`（无需安装 Python）。
+- 开发模式运行：`python main.py`
+- 使用 `python main.py --selftest` 可无界面自检内置算法是否正常。
+- 切换语言：菜单「语言 / Language」→ 中文 / English；首次启动按系统语言自动选择。
+
+## ✅ 运行单元测试
+
+```bat
+python -m pip install pytest
+python -m pytest
+```
+
+测试用官方已知值验证各算法（例如 `"abc"` 的 SHA-256 = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`），并覆盖分块读取、取消、算法识别、清单解析、批量校验、导出等场景；另含 GUI 冒烟测试（主流程与三种对比模式，在无图形环境自动跳过）。
+
+## 🧹 静态检查（ruff）
+
+```bat
+python -m pip install ruff
+python -m ruff check
+```
+
+规则集见 `ruff.toml`（面向桌面 GUI 裁剪：启用 E/F/I/UP/B/PIE 等，未启用 BLE/S 安全审计类规则）。
+
+## ⚡ 性能实测
+
+本机运行 `python benchmark.py` 实测（6 个 128MB 文件共 768MB；MD5+SHA-256+SHA-512 三种算法；每配置 2 轮取最优；测试机 32 逻辑核心）：
+
+| 线程数 | 耗时 | 吞吐 | 加速比 |
+| ---: | ---: | ---: | ---: |
+| 1 | 1.55 s | 494 MB/s | x1.00 |
+| 2 | 0.99 s | 779 MB/s | x1.58 |
+| 4 | 0.65 s | 1190 MB/s | x2.41 |
+
+多线程加速来自 hashlib 对大块数据的 GIL 释放；在机械硬盘等随机读较慢的介质上收益会降低，此时可在界面把「并行线程数」调为 1。
+
+## 🛠️ 打包（PyInstaller）
+
+```bat
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
+  --name "HashTool" --icon "%CD%\app.ico" ^
+  --distpath dist --workpath build --specpath build main.py
+```
+
+或直接运行 `build.bat`。要求使用 **64 位 Python（3.11+）**，产物为 `dist\HashTool.exe` 单文件，目标系统 Windows 10/11 64 位。
+
+## 🗂️ 目录结构
 
 ```
 HashTool/
@@ -87,54 +139,6 @@ HashTool/
 └── dist/
     └── HashTool.exe        # 打包产物（64 位单文件）
 ```
-
-## 🚀 使用方法
-
-- 直接运行 `dist\HashTool.exe`（无需安装 Python）。
-- 开发模式运行：`python main.py`
-- 使用 `python main.py --selftest` 可无界面自检内置算法是否正常。
-- 切换语言：菜单「语言 / Language」→ 中文 / English；首次启动按系统语言自动选择。
-
-## ✅ 运行单元测试
-
-```bat
-python -m pip install pytest
-python -m pytest
-```
-
-测试用官方已知值验证各算法（例如 `"abc"` 的 SHA-256 = `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad`），并覆盖分块读取、取消、算法识别、清单解析、批量校验、导出等场景；另含 GUI 冒烟测试（主流程与三种对比模式，在无图形环境自动跳过）。
-
-## 🧹 静态检查（ruff）
-
-```bat
-python -m pip install ruff
-python -m ruff check
-```
-
-规则集见 `ruff.toml`（面向桌面 GUI 裁剪：启用 E/F/I/UP/B/PIE 等，未启用 BLE/S 安全审计类规则）。
-
-## ⚡ 性能基准（本机实测）
-
-运行 `python benchmark.py`（6 个 128MB 文件共 768MB；MD5+SHA-256+SHA-512 三种算法；每配置 2 轮取最优；测试机 32 逻辑核心）：
-
-| 线程数 | 耗时 | 吞吐 | 加速比 |
-| ---: | ---: | ---: | ---: |
-| 1 | 1.55 s | 494 MB/s | x1.00 |
-| 2 | 0.99 s | 779 MB/s | x1.58 |
-| 4 | 0.65 s | 1190 MB/s | x2.41 |
-
-多线程加速来自 hashlib 对大块数据的 GIL 释放；在机械硬盘等随机读较慢的介质上收益会降低，此时可在界面把「并行线程数」调为 1。
-
-## 📦 打包命令（PyInstaller）
-
-```bat
-python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --clean --onefile --noconsole ^
-  --name "HashTool" --icon "%CD%\app.ico" ^
-  --distpath dist --workpath build --specpath build main.py
-```
-
-或直接运行 `build.bat`。要求使用 **64 位 Python（3.11+）**，产物为 `dist\HashTool.exe` 单文件，目标系统 Windows 10/11 64 位。
 
 ## ❓ 常见问题
 
