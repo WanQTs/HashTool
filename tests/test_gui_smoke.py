@@ -7,6 +7,7 @@ import tkinter as tk
 
 import pytest
 
+import hash_core
 from app import HashToolApp
 
 EXPECTED_ABC = {
@@ -142,6 +143,94 @@ def test_batch_tab(gui_root, tmp_path):
         summary = tab.var_summary.get()
         assert "通过 1" in summary
         assert "文件缺失 1" in summary
+    finally:
+        _teardown_app(app, gui_root)
+
+
+def test_batch_tab_shows_bad_format_rows(gui_root, tmp_path):
+    """清单中的无法识别行显示为「格式错误」行，不再静默忽略。"""
+    (tmp_path / "ok.txt").write_bytes(b"abc")
+    list_file = tmp_path / "清单.txt"
+    list_file.write_text(f"这不是合法行\n{EXPECTED_ABC['md5']}  ok.txt\n", encoding="utf-8")
+    app = HashToolApp(gui_root)
+    try:
+        app.open_compare()
+        tab = app.compare_win.tab_batch
+        tab.var_list.set(str(list_file))
+        tab.var_dir.set(str(tmp_path))
+        tab.start()
+        assert _pump_until(gui_root, lambda: tab.worker is None and tab.results)
+        assert len(tab.results) == 2
+        assert tab.results[0].status == "bad_format"
+        assert tab.results[0].item.filename == "这不是合法行"
+        statuses = [tab.tree.set(f"row{i}", "status") for i in range(2)]
+        assert "格式错误" in statuses and "通过" in statuses
+        assert "格式错误 1" in tab.var_summary.get()
+    finally:
+        _teardown_app(app, gui_root)
+
+
+def test_verify_tab_worker_crash_shows_error(gui_root, tmp_path, monkeypatch):
+    """模式一：worker 意外异常必须转为可见的错误结果（此前只恢复按钮、无任何提示）。"""
+    f = tmp_path / "abc.txt"
+    f.write_bytes(b"abc")
+    app = HashToolApp(gui_root)
+    try:
+        app.open_compare()
+        tab = app.compare_win.tab_verify
+        tab.var_file.set(str(f))
+        tab.var_hash.set(EXPECTED_ABC["sha256"])
+
+        def _boom(*_a, **_k):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(hash_core.HashCalculator, "compute_file", _boom)
+        tab.start()
+        assert _pump_until(gui_root, lambda: tab.worker is None)
+        assert "boom" in tab.var_detail.get()
+        assert "校验失败" in tab.var_result.get()
+        assert tab.btn_start.instate(("!disabled",))  # 按钮恢复可用，错误信息已展示
+    finally:
+        _teardown_app(app, gui_root)
+
+
+def test_batch_tab_worker_crash_shows_error(gui_root, tmp_path, monkeypatch):
+    """模式三：verify_batch 意外异常必须转为可见的错误结果。"""
+    (tmp_path / "ok.txt").write_bytes(b"abc")
+    list_file = tmp_path / "清单.txt"
+    list_file.write_text(f"{EXPECTED_ABC['md5']}  ok.txt\n", encoding="utf-8")
+    app = HashToolApp(gui_root)
+    try:
+        app.open_compare()
+        tab = app.compare_win.tab_batch
+        tab.var_list.set(str(list_file))
+        tab.var_dir.set(str(tmp_path))
+
+        def _boom(*_a, **_k):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(hash_core, "verify_batch", _boom)
+        tab.start()
+        assert _pump_until(gui_root, lambda: tab.worker is None and tab.results)
+        assert len(tab.results) == 1
+        assert tab.results[0].status == "error"
+        assert "boom" in tab.results[0].error
+    finally:
+        _teardown_app(app, gui_root)
+
+
+def test_export_uses_computed_algorithm_snapshot(gui_root, tmp_path):
+    """导出算法取计算结果快照：计算后取消勾选某算法，导出仍包含已计算的哈希。"""
+    f = tmp_path / "abc.txt"
+    f.write_bytes(b"abc")
+    app = HashToolApp(gui_root)
+    try:
+        app.add_paths([str(f)])
+        app.start_compute()
+        assert _pump_until(gui_root, lambda: app.worker is None and app.results)
+        app.algo_vars["sha256"].set(False)  # 计算完成后取消勾选
+        assert app.checked_algorithms() == []
+        assert app.computed_algorithms() == ["sha256"]  # 快照不受勾选影响
     finally:
         _teardown_app(app, gui_root)
 

@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 import hash_core
 from i18n import LANGUAGES, get_lang, init_language, save_config, set_lang, tr
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 
 # 对比结果配色（语义色）：一致=绿色、不一致=红色、缺失=橙色
 C_GREEN = "#1e7e34"
@@ -172,6 +172,7 @@ class HashToolApp:
         self.files: list[str] = []
         self._seen: set[str] = set()
         self.results: dict[str, hash_core.HashResult] = {}
+        self.last_algos: list[str] = []  # 最近一次计算实际使用的算法（导出快照依据）
         self.worker: threading.Thread | None = None
         self.cancel_event: threading.Event | None = None
         self.msg_queue: queue.Queue = queue.Queue()
@@ -506,6 +507,7 @@ class HashToolApp:
         if not algos:
             messagebox.showwarning(tr("msg_warn"), tr("warn_no_algos"), parent=self.root)
             return
+        self.last_algos = algos  # 记录本次任务实际使用的算法（导出快照，见 computed_algorithms）
         for f in self.files:
             self.tree.item(
                 f, values=self._empty_row(f, tr("st_waiting")),
@@ -745,6 +747,14 @@ class HashToolApp:
 
     # ------------------------------------------------------------------ 导出
 
+    def computed_algorithms(self) -> list[str]:
+        """本次计算结果实际包含的算法（结果快照），与当前勾选状态无关。
+
+        计算后取消勾选某算法再导出，CSV/TXT 仍包含已计算出的哈希。
+        """
+        algos = [a for a in ALGOS if any(a in r.hashes for r in self.results.values())]
+        return algos or self.last_algos or self.checked_algorithms()
+
     def export_results(self) -> None:
         if not any(r.ok for r in self.results.values()):
             messagebox.showwarning(tr("msg_warn"), tr("warn_no_results"), parent=self.root)
@@ -753,7 +763,7 @@ class HashToolApp:
         if self.export_dlg is not None and self.export_dlg.winfo_exists():
             self.export_dlg.lift()
             return
-        self.export_dlg = ExportDialog(self.root, self.results, self.checked_algorithms())
+        self.export_dlg = ExportDialog(self.root, self.results, self.computed_algorithms())
 
     # ------------------------------------------------------------------ 对比窗口
 
@@ -1063,7 +1073,10 @@ class VerifyTab(ttk.Frame):
 
     def _worker(self, path, algo, expected) -> None:
         try:
-            result = hash_core.HashCalculator([algo], cancel_event=self.cancel_event).compute_file(path)
+            try:
+                result = hash_core.HashCalculator([algo], cancel_event=self.cancel_event).compute_file(path)
+            except Exception as exc:  # compute_file 不应抛异常，兜底转为可见的错误结果
+                result = hash_core.HashResult(path=path, error=tr("err_compute", exc=exc))
             self.queue.put(("result", algo, expected, result))
         finally:
             # 兜底：任何意外异常都必须发送 done，否则界面按钮永久禁用、轮询空转
@@ -1204,8 +1217,14 @@ class TwoFileTab(ttk.Frame):
 
     def _worker(self, path_a, path_b, algos) -> None:
         try:
-            result_a = hash_core.HashCalculator(algos, cancel_event=self.cancel_event).compute_file(path_a)
-            result_b = hash_core.HashCalculator(algos, cancel_event=self.cancel_event).compute_file(path_b)
+            try:
+                result_a = hash_core.HashCalculator(algos, cancel_event=self.cancel_event).compute_file(path_a)
+            except Exception as exc:  # compute_file 不应抛异常，兜底转为可见的错误结果
+                result_a = hash_core.HashResult(path=path_a, error=tr("err_compute", exc=exc))
+            try:
+                result_b = hash_core.HashCalculator(algos, cancel_event=self.cancel_event).compute_file(path_b)
+            except Exception as exc:
+                result_b = hash_core.HashResult(path=path_b, error=tr("err_compute", exc=exc))
             # 算法列表随结果一并回传，避免计算期间用户改动勾选导致显示错乱
             self.queue.put(("result", result_a, result_b, algos))
         finally:
@@ -1372,6 +1391,18 @@ class BatchTab(ttk.Frame):
                 parent=self,
             )
             return
+        # 扩展名交叉校验：.sha256 等扩展名与哈希长度推断的算法冲突时提示用户，
+        # 防止格式不符的条目被静默按长度识别的算法校验
+        conflicts = hash_core.find_algorithm_conflicts(items, list_path)
+        if conflicts:
+            ext = os.path.splitext(list_path)[1].lstrip(".").upper() or tr("bt_lbl_list")
+            lines_sample = ", ".join(str(it.line_no) for it in conflicts[:5])
+            if not messagebox.askyesno(
+                tr("msg_warn"),
+                tr("bt_warn_algo_conflict", ext=ext, n=len(conflicts), lines=lines_sample),
+                parent=self,
+            ):
+                return
         self.results = []
         self.tree.delete(*self.tree.get_children())
         self.var_summary.set(tr("bt_summary_start", n=len(items)))
@@ -1386,12 +1417,21 @@ class BatchTab(ttk.Frame):
 
     def _worker(self, items, base_dir) -> None:
         try:
-            results = hash_core.verify_batch(
-                items,
-                base_dir,
-                progress_callback=lambda idx, total, done, size: self.queue.put(("progress", idx, total, done, size)),
-                cancel_event=self.cancel_event,
-            )
+            try:
+                results = hash_core.verify_batch(
+                    items,
+                    base_dir,
+                    progress_callback=lambda idx, total, done, size: self.queue.put(("progress", idx, total, done, size)),
+                    cancel_event=self.cancel_event,
+                )
+            except Exception as exc:  # verify_batch 不应抛异常，兜底转为可见的错误结果
+                results = [
+                    hash_core.BatchResultItem(
+                        item=hash_core.BatchCheckItem(expected_hash="", filename="", algorithm=None, line_no=0),
+                        status="error",
+                        error=tr("err_compute", exc=exc),
+                    )
+                ]
             self.queue.put(("result", results))
         finally:
             # 兜底：任何意外异常都必须发送 done，否则界面按钮永久禁用、轮询空转

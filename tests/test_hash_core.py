@@ -20,6 +20,9 @@ from hash_core import (
     collect_files,
     describe_error,
     detect_algorithm,
+    detect_extension_algorithm,
+    escape_sum_name,
+    find_algorithm_conflicts,
     format_batch_csv,
     format_export_csv,
     format_export_txt,
@@ -27,6 +30,7 @@ from hash_core import (
     normalize_hash_text,
     parse_hash_list,
     read_text_file,
+    unescape_sum_name,
     verify_batch,
 )
 
@@ -181,9 +185,13 @@ def test_parse_hash_list_common_formats():
     assert items[3].algorithm == "crc32" and items[3].filename == "sub\\d.txt"
 
 
-def test_parse_hash_list_skips_invalid_lines():
-    assert parse_hash_list("hello world") == []
-    assert parse_hash_list("a" * 32) == []  # 只有哈希没有文件名
+def test_parse_hash_list_keeps_bad_format_lines():
+    """无法识别的行不再静默丢弃：保留原始行并标记 bad_format（algorithm=None）。"""
+    items = parse_hash_list("hello world\n" + "a" * 32 + "\n")
+    assert len(items) == 2
+    assert all(it.algorithm is None for it in items)
+    assert items[0].filename == "hello world" and items[0].line_no == 1
+    assert items[1].expected_hash == "a" * 32 and items[1].line_no == 2  # 只有哈希没有文件名
 
 
 # ---------------------------------------------------------------------- 批量校验
@@ -222,6 +230,57 @@ def test_verify_batch_progress_callback(tmp_path):
     calls = []
     verify_batch(items, str(tmp_path), progress_callback=lambda i, t, d, s: calls.append((i, t, d, s)))
     assert calls[-1] == (0, 1, 3, 3)
+
+
+def test_verify_batch_marks_unrecognized_line_bad_format(tmp_path):
+    """清单中的坏行以 bad_format 呈现（用户可见），而不是被静默忽略。"""
+    (tmp_path / "ok.txt").write_bytes(b"abc")
+    items = parse_hash_list(
+        "这不是合法行\n"
+        "900150983cd24fb0d6963f7d28e17f72  ok.txt\n"
+    )
+    results = verify_batch(items, str(tmp_path))
+    assert [r.status for r in results] == ["bad_format", "pass"]
+    assert results[0].item.filename == "这不是合法行"
+    assert results[0].item.line_no == 1
+
+
+def test_verify_batch_rejects_paths_outside_base_dir(tmp_path):
+    """清单中的 ../ 或外部绝对路径不得越出基准目录（安全边界，以 error 报出）。"""
+    base = tmp_path / "base"
+    base.mkdir()
+    (base / "ok.txt").write_bytes(b"abc")
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"abc")
+    items = parse_hash_list(
+        "900150983cd24fb0d6963f7d28e17f72  ../outside.txt\n"
+        f"900150983cd24fb0d6963f7d28e17f72  {outside}\n"
+        "900150983cd24fb0d6963f7d28e17f72  ok.txt\n"
+    )
+    results = verify_batch(items, str(base))
+    assert [r.status for r in results] == ["error", "error", "pass"]
+    assert "超出" in results[0].error and "超出" in results[1].error
+
+
+def test_detect_extension_algorithm():
+    assert detect_extension_algorithm("list.sha256") == "sha256"
+    assert detect_extension_algorithm("LIST.MD5") == "md5"
+    assert detect_extension_algorithm("x.sha512") == "sha512"
+    assert detect_extension_algorithm("list.sum") is None
+    assert detect_extension_algorithm("list.txt") is None
+    assert detect_extension_algorithm("list") is None
+
+
+def test_find_algorithm_conflicts():
+    """扩展名交叉校验：.sha256 清单中的 MD5 长度哈希被识别为冲突项。"""
+    items = parse_hash_list(
+        "900150983cd24fb0d6963f7d28e17f72  a.txt\n"
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  b.txt\n"
+    )
+    assert find_algorithm_conflicts(items, "list.sha256") == [items[0]]
+    assert find_algorithm_conflicts(items, "list.sum") == []
+    assert find_algorithm_conflicts(items, "list.txt") == []
+    assert find_algorithm_conflicts([], "list.sha256") == []
 
 
 # ---------------------------------------------------------------------- 文件遍历
@@ -283,6 +342,37 @@ def test_format_export_csv(tmp_path):
                           hashes={"md5": "900150983cd24fb0d6963f7d28e17f72"}, elapsed=0.05)]
     out = format_export_csv(results, ["md5"])
     assert "文件名" in out and "900150983cd24fb0d6963f7d28e17f72" in out and "a.txt" in out
+
+
+def test_sum_escape_roundtrip():
+    """GNU 转义函数往返：含反斜杠/换行/回车的文件名转义后反转义原样还原。"""
+    name = "a\\b\nc\r.txt"
+    assert unescape_sum_name(escape_sum_name(name)) == name
+    # 普通文件名（无反斜杠/换行/回车）不转义
+    assert escape_sum_name("plain.txt") == "plain.txt"
+    assert unescape_sum_name("plain.txt") == "plain.txt"
+
+
+def test_format_export_txt_escapes_newline_name():
+    """SUM 导出对含换行的文件名按 GNU 约定转义，解析后原样还原。"""
+    name = "a\nb.txt"
+    r = HashResult(path="C:\\x\\" + name, size=3,
+                   hashes={"md5": "900150983cd24fb0d6963f7d28e17f72"}, elapsed=0.01)
+    out = format_export_txt([r], "md5")
+    assert "\\n" in out  # 转义后的文件名是单行文本
+    parsed = parse_hash_list(out)
+    assert len(parsed) == 1 and parsed[0].filename == name
+
+
+def test_parse_hash_list_unescapes_gnu_names():
+    """解析含 GNU 转义文件名（如 Linux 生成的 SHA256SUMS）时正确还原。"""
+    items = parse_hash_list("900150983cd24fb0d6963f7d28e17f72  a\\\\b.txt\n")
+    assert items[0].filename == "a\\b.txt"
+    # 普通文件名不转义
+    items2 = parse_hash_list("900150983cd24fb0d6963f7d28e17f72  a.txt\n")
+    assert items2[0].filename == "a.txt"
+    # 未知转义序列原样保留（如 Windows 路径分隔符组合）
+    assert unescape_sum_name("C:\\dir\\file.txt") == "C:\\dir\\file.txt"
 
 
 def test_format_batch_csv():
@@ -375,6 +465,19 @@ def test_progress_tracker_error_file_not_counted():
     t.on_progress("bad", 40)
     assert t.percent == 40.0
     t.on_result(HashResult(path="bad", error="拒绝访问"))
+    assert t.percent == 0.0
+    assert not t.in_progress
+    assert t.finished_count == 1
+
+
+def test_progress_tracker_cancelled_file_not_counted():
+    """取消的文件不计入完成字节：其 size 已写入结果但 error 为空，
+    若按 error 判断会让进度虚增到 100%（修复回归测试）。"""
+    t = ProgressTracker()
+    t.set_total(100)
+    t.on_progress("c", 40)
+    assert t.percent == 40.0
+    t.on_result(HashResult(path="c", size=100, cancelled=True))
     assert t.percent == 0.0
     assert not t.in_progress
     assert t.finished_count == 1

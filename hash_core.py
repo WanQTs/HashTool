@@ -69,8 +69,9 @@ class BatchCheckItem:
 
     expected_hash: str
     filename: str
-    algorithm: str | None = None  # None 表示格式无法识别
+    algorithm: str | None = None  # None 表示格式无法识别（bad_format）
     line_no: int = 0
+    raw: str = ""  # 原始行内容（格式错误时保留，便于界面展示/导出定位）
 
 
 @dataclass
@@ -186,10 +187,11 @@ class ProgressTracker:
     def on_result(self, result: HashResult) -> None:
         """文件结束（成功/失败/取消）：累计字节并清除其进行中记录。
 
-        失败的文件不计入完成字节（与界面既有行为一致：进度条不因其虚增）。
+        仅成功（ok）的文件计入完成字节：失败与取消都不计入
+        （取消结果携带完整 size 且 error 为空，若按 error 判断会让进度虚增到 100%）。
         """
         self.finished_count += 1
-        if not result.error:
+        if result.ok:
             self.finished_bytes += result.size
         self.in_progress.pop(result.path, None)
 
@@ -280,6 +282,9 @@ def parse_hash_list(text: str) -> list[BatchCheckItem]:
         <哈希值>  *<文件名>            （BSD 风格）
         MD5 (<文件名>) = <哈希值>      （certutil 风格）
     以 # 或 ; 开头的行视为注释，空行跳过。
+
+    无法识别的行不再静默丢弃：保留原始行并标记 bad_format（algorithm=None），
+    由 verify_batch 产出「格式错误」结果，避免用户漏看清单中的坏条目。
     """
     items: list[BatchCheckItem] = []
     for line_no, raw in enumerate(text.splitlines(), start=1):
@@ -287,8 +292,13 @@ def parse_hash_list(text: str) -> list[BatchCheckItem]:
         if not line or line.startswith(("#", ";")):
             continue
         item = _parse_one_line(line, line_no)
-        if item is not None:
-            items.append(item)
+        if item is None:
+            # 格式无法识别：整行作为文件名占位展示；行内含十六进制片段时保留为期望哈希，
+            # 便于用户从「期望哈希」列直接看出是哪条坏数据
+            items.append(BatchCheckItem(expected_hash=normalize_hash_text(line), filename=line,
+                                        algorithm=None, line_no=line_no, raw=line))
+            continue
+        items.append(item)
     return items
 
 
@@ -297,15 +307,85 @@ def _parse_one_line(line: str, line_no: int) -> BatchCheckItem | None:
     m = re.match(r"^(md5|sha1|sha256|sha512|crc32)\s*\((.+?)\)\s*=\s*([0-9a-fA-F]{8,128})$", line, re.IGNORECASE)
     if m:
         algo, filename, digest = m.groups()
-        return BatchCheckItem(digest.lower(), filename.strip(), algo.lower(), line_no)
-    # 常规风格：hash 文件名 / hash *文件名
+        return BatchCheckItem(digest.lower(), filename.strip(), algo.lower(), line_no, raw=line)
+    # 常规风格：hash 文件名 / hash *文件名（文件名按 GNU 约定反转义）
     m = re.match(r"^([0-9a-fA-F]{8,128})\s+\*?(.*?)\s*$", line)
     if m:
         digest, filename = m.groups()
+        filename = unescape_sum_name(filename)
         if not filename:
-            return None
-        return BatchCheckItem(digest.lower(), filename, _LENGTH_TO_ALGORITHM.get(len(digest)), line_no)
+            # 只有哈希没有文件名：保留哈希供展示，算法置 None 标记为格式错误
+            return BatchCheckItem(digest.lower(), line, None, line_no, raw=line)
+        return BatchCheckItem(digest.lower(), filename, _LENGTH_TO_ALGORITHM.get(len(digest)), line_no, raw=line)
     return None
+
+
+def escape_sum_name(name: str) -> str:
+    """按 GNU coreutils 约定转义 SUM 文件名：含反斜杠/换行/回车时，\\→\\\\、\\n→\\n、\\r→\\r。
+
+    仅当文件名确实含这些字符时才转义（与 md5sum/sha256sum 行为一致），
+    普通文件名（Windows 上绝大多数情况）原样输出，保持清单可读。
+    """
+    if "\\" not in name and "\n" not in name and "\r" not in name:
+        return name
+    return name.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
+
+
+def unescape_sum_name(name: str) -> str:
+    """GNU 转义反转义：\\→\\、\\n→换行、\\r→回车；未知转义（如 Windows 路径分隔符组合）原样保留。
+
+    按 GNU 约定，文件名含反斜杠时必然经过转义，因此只要出现反斜杠就解码。
+    """
+    if "\\" not in name:
+        return name
+    out: list[str] = []
+    i = 0
+    while i < len(name):
+        c = name[i]
+        if c == "\\" and i + 1 < len(name):
+            nxt = name[i + 1]
+            out.append({"\\": "\\", "n": "\n", "r": "\r"}.get(nxt, c + nxt))
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+# 清单扩展名 -> 预期算法（用于扩展名交叉校验；.sum/.txt 无法确定，返回 None）
+EXTENSION_ALGORITHMS = {
+    ".md5": "md5",
+    ".sha1": "sha1",
+    ".sha256": "sha256",
+    ".sha512": "sha512",
+}
+
+
+def detect_extension_algorithm(path: str) -> str | None:
+    """按清单文件扩展名推断预期算法；无法确定（如 .sum/.txt/无扩展名）返回 None。"""
+    return EXTENSION_ALGORITHMS.get(os.path.splitext(os.fspath(path))[1].lower())
+
+
+def find_algorithm_conflicts(items: Iterable[BatchCheckItem], list_path: str) -> list[BatchCheckItem]:
+    """交叉校验：扩展名推断的算法与条目按哈希长度推断的算法冲突时，返回这些条目。
+
+    例如 .sha256 清单中出现 32 位（MD5 长度）哈希，说明该行格式可疑，应由调用方提示用户。
+    """
+    expected = detect_extension_algorithm(list_path)
+    if expected is None:
+        return []
+    return [it for it in items if it.algorithm is not None and it.algorithm != expected]
+
+
+def _is_path_within(base_dir: str, path: str) -> bool:
+    """判断 path 是否位于 base_dir 之内（防止清单中的 ../ 或外部绝对路径越出基准目录）。"""
+    base = os.path.abspath(base_dir)
+    full = os.path.abspath(path)
+    try:
+        common = os.path.commonpath([base, full])
+    except ValueError:  # 不同盘符（Windows）无法比较
+        return False
+    return common == base
 
 
 def verify_batch(
@@ -317,6 +397,9 @@ def verify_batch(
     """批量校验哈希清单。base_dir 为文件所在目录。
 
     progress_callback(index, total, done_bytes, size_bytes)
+
+    安全边界：清单中的文件名（含相对子目录与绝对路径）必须解析在 base_dir 之内，
+    越界条目（如 ../ 或外部路径）以 error 状态返回，不读取基准目录外的文件。
     """
     items = list(items)
     total = len(items)
@@ -329,6 +412,12 @@ def verify_batch(
             results.append(BatchResultItem(item=item, status="bad_format"))
             continue
         path = item.filename if os.path.isabs(item.filename) else os.path.join(base_dir, item.filename)
+        if not _is_path_within(base_dir, path):
+            results.append(BatchResultItem(item=item, status="error",
+                                           error=tr("bt_err_out_of_dir", name=item.filename)))
+            if progress_callback is not None:
+                progress_callback(idx, total, 0, 0)
+            continue
         if not os.path.isfile(path):
             results.append(BatchResultItem(item=item, status="missing"))
             if progress_callback is not None:
@@ -366,7 +455,10 @@ def read_text_file(path: str) -> str:
 
 
 def format_export_txt(results: Iterable[HashResult], algorithm: str) -> str:
-    """生成标准 SUM 格式文本（每行 "哈希值  文件名"，可被其他校验工具识别）。"""
+    """生成标准 SUM 格式文本（每行 "哈希值  文件名"，可被其他校验工具识别）。
+
+    文件名按 GNU 约定转义（含反斜杠/换行/回车时），可由本工具 parse_hash_list 原样还原。
+    """
     ok = [r for r in results if r.ok and r.get(algorithm)]
     if not ok:
         return ""
@@ -374,7 +466,7 @@ def format_export_txt(results: Iterable[HashResult], algorithm: str) -> str:
     lines = []
     for r in ok:
         name = os.path.basename(r.path) if counts[os.path.basename(r.path)] == 1 else r.path
-        lines.append(f"{r.get(algorithm)}  {name}")
+        lines.append(f"{r.get(algorithm)}  {escape_sum_name(name)}")
     return "\n".join(lines) + "\n"
 
 

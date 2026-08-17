@@ -66,7 +66,7 @@ python main.py
 python main.py --selftest
 python main.py --smoke
 
-:: 运行全部测试（64 个，当前全部通过）
+:: 运行全部测试（76 个，当前全部通过）
 python -m pytest
 
 :: 静态检查（当前零告警）
@@ -108,4 +108,4 @@ build.bat
 - 拖拽（`dnd.py`）直接操作窗口过程，所有 ctypes 调用都要保持现有的类型声明与异常兜底；非 Windows 必须静默禁用。
 - 配置目录为 `%APPDATA%\HashTool\`；旧目录 `%APPDATA%\哈希工具\` 仅用于启动时迁移，不要在新代码中引用旧路径。
 - 程序不访问网络、不写工作目录之外的位置（除上述配置目录与临时目录的错误日志）；保持零第三方运行时依赖，新功能优先用标准库实现。
-- 批量比对清单中的文件名可含相对子目录，路径拼接基于用户选择的目录（`verify_batch` 的 `base_dir`），属预期行为。
+- 批量比对清单中的文件名可含相对子目录，路径拼接基于用户选择的目录（`verify_batch` 的 `base_dir`）；安全边界：文件名（含 `../` 与绝对路径）必须解析在 `base_dir` 之内，越界条目以 `error` 状态返回、不读取目录外文件。无法识别的行不再静默忽略，保留原始行并标记 `bad_format`；`parse_hash_list` 支持 GNU 转义文件名（`escape_sum_name`/`unescape_sum_name`），`detect_extension_algorithm`/`find_algorithm_conflicts` 用于扩展名与哈希长度的交叉校验。
